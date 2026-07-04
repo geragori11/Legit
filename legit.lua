@@ -6,13 +6,34 @@ return function(Window)
     local Debris = game:GetService("Debris")
     
     if not Window then 
-        warn("Rayfield Window object was not passed to the module!") 
+        warn("[Legit Module] Обьект Window не был передан в модуль!") 
         return 
     end
 
-    -- Создание вкладки в Rayfield (убедись, что иконка ID корректная или оставь 0)
-    local LegitTab = Window:CreateTab("LEGIT", 4483362458)
-    
+    -- Находим нужные методы динамически, чтобы избежать ошибки "nil value" на 21 строке
+    local function getMethod(obj, options)
+        if type(obj) ~= "table" then return nil end
+        for _, name in ipairs(options) do
+            if obj[name] then return obj[name] end
+        end
+        return nil
+    end
+
+    local createTabMethod = getMethod(Window, {"CreateTab", "NewTab", "AddTab", "MakeTab", "Tab"})
+    if not createTabMethod then
+        warn("[Legit Module] Не удалось найти метод создания вкладки у переданного обьекта!")
+        return
+    end
+
+    -- Создаем вкладку через найденный метод
+    local LegitTab = createTabMethod(Window, "LEGIT", 4483362458)
+    if not LegitTab then return end
+
+    -- Динамически получаем методы для элементов интерфейса
+    local createSection = getMethod(LegitTab, {"CreateSection", "NewSection", "AddSection", "MakeSection", "Section"})
+    local createToggle = getMethod(LegitTab, {"CreateToggle", "NewToggle", "AddToggle", "MakeToggle", "Toggle"})
+    local createSlider = getMethod(LegitTab, {"CreateSlider", "NewSlider", "AddSlider", "MakeSlider", "Slider"})
+
     -- --- НАСТРОЙКИ ФУНКЦИЙ ---
     local SmartESPEnabled = false
     local SmartESPRadius = 40
@@ -58,7 +79,6 @@ return function(Window)
     pcall(function() LegitGui.Parent = game:GetService("CoreGui") end)
     if not LegitGui.Parent then LegitGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
-    -- Индикатор датчика приближения
     local ProximityLabel = Instance.new("TextLabel")
     ProximityLabel.Size = UDim2.new(0, 200, 0, 30)
     ProximityLabel.Position = UDim2.new(0.5, -100, 0, 50)
@@ -70,7 +90,6 @@ return function(Window)
     ProximityLabel.Visible = false
     ProximityLabel.Parent = LegitGui
 
-    -- Текстовое предупреждение о ноже
     local AlertLabel = Instance.new("TextLabel")
     AlertLabel.Size = UDim2.new(0, 300, 0, 40)
     AlertLabel.Position = UDim2.new(0.5, -150, 0.1, 0)
@@ -129,122 +148,130 @@ return function(Window)
 
     local function ClearHidingSpotsESP()
         for id, data in pairs(ActiveSpotHighlights) do
-            if data.Adornment then data.Adornment:Destroy() end
+            if data.Gui then data.Gui:Destroy() end
             if data.Part then data.Part:Destroy() end
         end
         table.clear(ActiveSpotHighlights)
+        local folder = workspace:FindFirstChild("HidingSpots_Folder")
+        if folder then folder:Destroy() end
     end
 
     -- ==========================================
-    -- СЕКЦИЯ: SMART VISUALS (УМНЫЙ ESP)
+    -- СЕКЦИЯ: ОТРИСОВКА ИНТЕРФЕЙСА
     -- ==========================================
-    LegitTab:CreateSection("Subtle Visuals")
+    if createSection then createSection(LegitTab, "Subtle Visuals") end
 
-    LegitTab:CreateToggle({
-        Name = "Умный ESP (Smart ESP)",
-        CurrentValue = false,
-        Flag = "SmartESPToggle",
-        Callback = function(Value)
-            SmartESPEnabled = Value
-            if not Value then ClearAllESP() end
-        end
-    })
-
-    LegitTab:CreateSlider({
-        Name = "Радиус видимости ESP",
-        Range = {10, 150},
-        Increment = 5,
-        Suffix = " studs",
-        CurrentValue = 40,
-        Flag = "SmartESPRadiusSlider",
-        Callback = function(Value)
-            SmartESPRadius = Value
-        end
-    })
-
-    -- ==========================================
-    -- СЕКЦИЯ: RADAR & DETECTORS (ДАТЧИКИ И АЛЕРТЫ)
-    -- ==========================================
-    LegitTab:CreateSection("Detectors & Alerts")
-
-    LegitTab:CreateToggle({
-        Name = "Индикатор оружия (Weapon Draw Alert)",
-        CurrentValue = false,
-        Flag = "WeaponAlertToggle",
-        Callback = function(Value)
-            WeaponAlertEnabled = Value
-            if not Value then AlertLabel.Visible = false end
-        end
-    })
-
-    LegitTab:CreateToggle({
-        Name = "Датчик приближения (Proximity Warning)",
-        CurrentValue = false,
-        Flag = "ProximityToggle",
-        Callback = function(Value)
-            ProximityEnabled = Value
-            if not Value then ProximityLabel.Visible = false end
-        end
-    })
-
-    -- ==========================================
-    -- СЕКЦИЯ: WORLD TRACKERS (СБОР И ОБЪЕКТЫ)
-    -- ==========================================
-    LegitTab:CreateSection("World Trackers")
-
-    LegitTab:CreateToggle({
-        Name = "Ограниченный ESP монет (Radius Coins)",
-        CurrentValue = false,
-        Flag = "CoinESPToggle",
-        Callback = function(Value)
-            CoinESPEnabled = Value
-            if not Value then ClearCoinESP() end
-        end
-    })
-
-    LegitTab:CreateSlider({
-        Name = "Радиус поиска монет",
-        Range = {10, 50},
-        Increment = 5,
-        Suffix = " studs",
-        CurrentValue = 20,
-        Flag = "CoinRadiusSlider",
-        Callback = function(Value)
-            CoinESPRadius = Value
-        end
-    })
-
-    LegitTab:CreateToggle({
-        Name = "Подсветка нычек (Hiding Spots)",
-        CurrentValue = false,
-        Flag = "HidingSpotsToggle",
-        Callback = function(Value)
-            HidingSpotsEnabled = Value
-            if not Value then ClearHidingSpotsESP() end
-        end
-    })
-
-    LegitTab:CreateToggle({
-        Name = "Следы шагов Убийцы (Footstep Trails)",
-        CurrentValue = false,
-        Flag = "TrailsToggle",
-        Callback = function(Value)
-            TrailsEnabled = Value
-        end
-    })
-
-    LegitTab:CreateToggle({
-        Name = "Трекер пушки Шерифа (Gun Tracker)",
-        CurrentValue = false,
-        Flag = "GunTrackerToggle",
-        Callback = function(Value)
-            GunTrackerEnabled = Value
-            if not Value and ActiveGunHighlight then 
-                ActiveGunHighlight:Destroy() 
-                ActiveGunHighlight = nil
+    if createToggle then
+        createToggle(LegitTab, {
+            Name = "Умный ESP (Smart ESP)",
+            CurrentValue = false,
+            Flag = "SmartESPToggle",
+            Callback = function(Value)
+                SmartESPEnabled = Value
+                if not Value then ClearAllESP() end
             end
-        end
-    })
+        })
+    end
+
+    if createSlider then
+        createSlider(LegitTab, {
+            Name = "Радиус видимости ESP",
+            Range = {10, 150},
+            Increment = 5,
+            Suffix = " studs",
+            CurrentValue = 40,
+            Flag = "SmartESPRadiusSlider",
+            Callback = function(Value)
+                SmartESPRadius = Value
+            end
+        })
+    end
+
+    if createSection then createSection(LegitTab, "Detectors & Alerts") end
+
+    if createToggle then
+        createToggle(LegitTab, {
+            Name = "Индикатор оружия (Weapon Draw Alert)",
+            CurrentValue = false,
+            Flag = "WeaponAlertToggle",
+            Callback = function(Value)
+                WeaponAlertEnabled = Value
+                if not Value then AlertLabel.Visible = false end
+            end
+        })
+
+        createToggle(LegitTab, {
+            Name = "Датчик приближения (Proximity Warning)",
+            CurrentValue = false,
+            Flag = "ProximityToggle",
+            Callback = function(Value)
+                ProximityEnabled = Value
+                if not Value then ProximityLabel.Visible = false end
+            end
+        })
+    end
+
+    if createSection then createSection(LegitTab, "World Trackers") end
+
+    if createToggle then
+        createToggle(LegitTab, {
+            Name = "Ограниченный ESP монет (Radius Coins)",
+            CurrentValue = false,
+            Flag = "CoinESPToggle",
+            Callback = function(Value)
+                CoinESPEnabled = Value
+                if not Value then ClearCoinESP() end
+            end
+        })
+    end
+
+    if createSlider then
+        createSlider(LegitTab, {
+            Name = "Радиус поиска монет",
+            Range = {10, 50},
+            Increment = 5,
+            Suffix = " studs",
+            CurrentValue = 20,
+            Flag = "CoinRadiusSlider",
+            Callback = function(Value)
+                CoinESPRadius = Value
+            end
+        })
+    end
+
+    if createToggle then
+        createToggle(LegitTab, {
+            Name = "Подсветка нычек (Hiding Spots)",
+            CurrentValue = false,
+            Flag = "HidingSpotsToggle",
+            Callback = function(Value)
+                HidingSpotsEnabled = Value
+                if not Value then ClearHidingSpotsESP() end
+            end
+        })
+
+        createToggle(LegitTab, {
+            Name = "Следы шагов Убийцы (Footstep Trails)",
+            CurrentValue = false,
+            Flag = "TrailsToggle",
+            Callback = function(Value)
+                TrailsEnabled = Value
+            end
+        })
+
+        createToggle(LegitTab, {
+            Name = "Трекер пушки Шерифа (Gun Tracker)",
+            CurrentValue = false,
+            Flag = "GunTrackerToggle",
+            Callback = function(Value)
+                GunTrackerEnabled = Value
+                if not Value and ActiveGunHighlight then 
+                    ActiveGunHighlight:Destroy() 
+                    ActiveGunHighlight = nil
+                end
+            end
+        })
+    end
 
     -- ==========================================
     -- ЕДИНЫЙ ЦИКЛ ОБРАБОТКИ (RENDERSTEPPED)
@@ -254,7 +281,6 @@ return function(Window)
         local TargetSheriff = nil
         local enemyPositions = {}
 
-        -- 1. Сбор ролей на сервере и координат противников
         for _, Player in ipairs(Players:GetPlayers()) do
             if Player ~= LocalPlayer and Player.Character then
                 local hasKnife = Player.Character:FindFirstChild("Knife") or (Player:FindFirstChild("Backpack") and Player.Backpack:FindFirstChild("Knife"))
@@ -269,7 +295,6 @@ return function(Window)
                 if root and humanoid and humanoid.Health > 0 then
                     table.insert(enemyPositions, root.Position)
 
-                    -- [ЛОГИКА SMART ESP]
                     if SmartESPEnabled then
                         local distance = GetDistance(root)
                         local visible = IsVisible(Player)
@@ -312,7 +337,6 @@ return function(Window)
             end
         end
 
-        -- 2. Логика индикатора ножа (Weapon Draw Alert)
         if WeaponAlertEnabled and TargetMurderer and TargetMurderer.Character then
             local knifeEquipped = TargetMurderer.Character:FindFirstChild("Knife")
             AlertLabel.Visible = not not knifeEquipped
@@ -320,7 +344,6 @@ return function(Window)
             AlertLabel.Visible = false
         end
 
-        -- 3. Логика датчика приближения (Proximity Warning)
         if ProximityEnabled and TargetMurderer and TargetMurderer.Character and TargetMurderer.Character:FindFirstChild("HumanoidRootPart") then
             local dist = math.round(GetDistance(TargetMurderer.Character.HumanoidRootPart))
             ProximityLabel.Visible = true
@@ -337,7 +360,6 @@ return function(Window)
             ProximityLabel.Visible = false
         end
 
-        -- 4. Логика следов шагов (Footstep Trails)
         if TrailsEnabled and TargetMurderer and TargetMurderer.Character and TargetMurderer.Character:FindFirstChild("HumanoidRootPart") then
             if tick() - LastTrailSpawn > 0.25 then
                 LastTrailSpawn = tick()
@@ -365,7 +387,6 @@ return function(Window)
             end
         end
 
-        -- 5. Логика ограниченного ESP на монеты (Radius Coin ESP)
         if CoinESPEnabled then
             local container = workspace:FindFirstChild("Normal") and workspace.Normal:FindFirstChild("CoinContainer")
             local coins = container and container:GetChildren() or {}
@@ -408,7 +429,6 @@ return function(Window)
             end
         end
 
-        -- 6. Трекер упавшего пистолета (Dead Sheriff Gun Tracker)
         if GunTrackerEnabled then
             local droppedGun = workspace:FindFirstChild("GunDrop")
             if droppedGun and droppedGun:IsA("BasePart") then
@@ -431,12 +451,11 @@ return function(Window)
             end
         end
 
-       -- 7. ЖЕЛЕЗОБЕТОННАЯ ЛОГИКА НА BILLBOARDGUI (ВИДНО СКВОЗЬ СТЕНЫ)
+        -- НАДЕЖНЫЙ BILLBOARDGUI ДЛЯ НЫЧЕК (ПРОБИВАЕТ СТЕНЫ)
         if HidingSpotsEnabled then
             if tick() - LastSpotCheck > 0.3 then
                 LastSpotCheck = tick()
 
-                -- Создаем папку в workspace, если её нет (гарантирует рендер UI)
                 local folder = workspace:FindFirstChild("HidingSpots_Folder")
                 if not folder then
                     folder = Instance.new("Folder")
@@ -453,32 +472,28 @@ return function(Window)
                     if not data then
                         data = {}
                         
-                        -- Создаем физическую точку-якорь внутри нашей папки
                         local visualPart = Instance.new("Part")
                         visualPart.Size = Vector3.new(1, 1, 1)
                         visualPart.Position = spotPosition
                         visualPart.Anchored = true
                         visualPart.CanCollide = false
-                        visualPart.Transparency = 1 -- Абсолютно невидимая
+                        visualPart.Transparency = 1
                         visualPart.Parent = folder
                         data.Part = visualPart
                         
-                        -- Создаем BillboardGui, который пробивает стены
                         local billboard = Instance.new("BillboardGui")
                         billboard.Name = "HidingSpotGui"
-                        billboard.Size = UDim2.new(0, 15, 0, 15) -- Размер точки на экране
-                        billboard.AlwaysOnTop = true -- Вот это свойство делает её видной сквозь стены!
+                        billboard.Size = UDim2.new(0, 18, 0, 18)
+                        billboard.AlwaysOnTop = true -- Пробивает любые стены
                         billboard.Adornee = visualPart
                         billboard.Parent = visualPart
                         
-                        -- Сама круглая точка (индикатор)
                         local dot = Instance.new("Frame")
                         dot.Size = UDim2.new(1, 0, 1, 0)
                         dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
                         dot.BorderSizePixel = 0
                         dot.Parent = billboard
                         
-                        -- Делаем фрейм круглым
                         local corner = Instance.new("UICorner")
                         corner.CornerRadius = UDim.new(1, 0)
                         corner.Parent = dot
@@ -487,7 +502,6 @@ return function(Window)
                         ActiveSpotHighlights[id] = data
                     end
                     
-                    -- Проверяем игроков вокруг нычки
                     local playersInside = 0
                     for _, enemyPos in ipairs(enemyPositions) do
                         if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
@@ -495,14 +509,13 @@ return function(Window)
                         end
                     end
                     
-                    -- Меняем цвет точки динамически
                     if data.Gui then
                         if playersInside == 0 then
-                            data.Gui.BackgroundColor3 = Color3.fromRGB(0, 255, 120) -- Зеленый (Чисто)
+                            data.Gui.BackgroundColor3 = Color3.fromRGB(0, 255, 120) -- Чисто (Зеленый)
                         elseif playersInside == 1 then
-                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 200, 0) -- Желтый (Рядом кто-то есть)
+                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 200, 0) -- Внимание (Желтый)
                         else
-                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 0, 50)   -- Красный (Опасно)
+                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 0, 50)   -- Враг внутри (Красный)
                         end
                     end
                 end
@@ -512,3 +525,6 @@ return function(Window)
                 ClearHidingSpotsESP()
             end
         end
+
+    end)
+end
