@@ -10,7 +10,7 @@ return function(Window)
         return 
     end
 
-    -- Находим нужные методы динамически, чтобы избежать ошибки "nil value" на 21 строке
+    -- Находим нужные методы динамически, чтобы избежать ошибки "nil value"
     local function getMethod(obj, options)
         if type(obj) ~= "table" then return nil end
         for _, name in ipairs(options) do
@@ -53,6 +53,7 @@ return function(Window)
     -- Настройки функции Тепловой Карты Нычек
     local HidingSpotsEnabled = false
     local HidingSpotsRadius = 12
+    local MaxSpotDisplayDistance = 20 -- Максимальная дистанция отображения нычек
     local LastSpotCheck = 0
     
     -- ТАБЛИЦА С ТВОИМИ НЫЧКАМИ
@@ -451,7 +452,7 @@ return function(Window)
             end
         end
 
-        -- НАДЕЖНЫЙ BILLBOARDGUI ДЛЯ НЫЧЕК (ПРОБИВАЕТ СТЕНЫ)
+        -- УМНЫЙ BILLBOARDGUI ДЛЯ НЫЧЕК С ОГРАНИЧЕНИЕМ ПО ДИСТАНЦИИ В 60 СТУДОВ
         if HidingSpotsEnabled then
             if tick() - LastSpotCheck > 0.3 then
                 LastSpotCheck = tick()
@@ -463,59 +464,76 @@ return function(Window)
                     folder.Parent = workspace
                 end
 
+                -- Получаем HumanoidRootPart локального игрока для замера расстояния
+                local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
                 for id, spot in ipairs(HidingSpots) do
                     if not spot then continue end 
                     
                     local spotPosition = (typeof(spot) == "Vector3") and spot or spot.Position
                     local data = ActiveSpotHighlights[id]
                     
-                    if not data then
-                        data = {}
-                        
-                        local visualPart = Instance.new("Part")
-                        visualPart.Size = Vector3.new(1, 1, 1)
-                        visualPart.Position = spotPosition
-                        visualPart.Anchored = true
-                        visualPart.CanCollide = false
-                        visualPart.Transparency = 1
-                        visualPart.Parent = folder
-                        data.Part = visualPart
-                        
-                        local billboard = Instance.new("BillboardGui")
-                        billboard.Name = "HidingSpotGui"
-                        billboard.Size = UDim2.new(0, 18, 0, 18)
-                        billboard.AlwaysOnTop = true -- Пробивает любые стены
-                        billboard.Adornee = visualPart
-                        billboard.Parent = visualPart
-                        
-                        local dot = Instance.new("Frame")
-                        dot.Size = UDim2.new(1, 0, 1, 0)
-                        dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
-                        dot.BorderSizePixel = 0
-                        dot.Parent = billboard
-                        
-                        local corner = Instance.new("UICorner")
-                        corner.CornerRadius = UDim.new(1, 0)
-                        corner.Parent = dot
-                        
-                        data.Gui = dot
-                        ActiveSpotHighlights[id] = data
-                    end
+                    -- Считаем дистанцию от себя до текущей нычки
+                    local distance = localRoot and (localRoot.Position - spotPosition).Magnitude or 999999
                     
-                    local playersInside = 0
-                    for _, enemyPos in ipairs(enemyPositions) do
-                        if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
-                            playersInside = playersInside + 1
+                    -- Проверяем условие: если ближе 60 студов, то показываем
+                    if distance <= MaxSpotDisplayDistance then
+                        if not data then
+                            data = {}
+                            
+                            local visualPart = Instance.new("Part")
+                            visualPart.Size = Vector3.new(1, 1, 1)
+                            visualPart.Position = spotPosition
+                            visualPart.Anchored = true
+                            visualPart.CanCollide = false
+                            visualPart.Transparency = 1
+                            visualPart.Parent = folder
+                            data.Part = visualPart
+                            
+                            local billboard = Instance.new("BillboardGui")
+                            billboard.Name = "HidingSpotGui"
+                            billboard.Size = UDim2.new(0, 18, 0, 18)
+                            billboard.AlwaysOnTop = true
+                            billboard.Adornee = visualPart
+                            billboard.Parent = visualPart
+                            
+                            local dot = Instance.new("Frame")
+                            dot.Size = UDim2.new(1, 0, 1, 0)
+                            dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+                            dot.BorderSizePixel = 0
+                            dot.Parent = billboard
+                            
+                            local corner = Instance.new("UICorner")
+                            corner.CornerRadius = UDim.new(1, 0)
+                            corner.Parent = dot
+                            
+                            data.Gui = dot
+                            ActiveSpotHighlights[id] = data
                         end
-                    end
-                    
-                    if data.Gui then
-                        if playersInside == 0 then
-                            data.Gui.BackgroundColor3 = Color3.fromRGB(0, 255, 120) -- Чисто (Зеленый)
-                        elseif playersInside == 1 then
-                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 200, 0) -- Внимание (Желтый)
-                        else
-                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 0, 50)   -- Враг внутри (Красный)
+                        
+                        -- Проверка врагов в радиусе самой нычки
+                        local playersInside = 0
+                        for _, enemyPos in ipairs(enemyPositions) do
+                            if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
+                                playersInside = playersInside + 1
+                            end
+                        end
+                        
+                        if data.Gui then
+                            if playersInside == 0 then
+                                data.Gui.BackgroundColor3 = Color3.fromRGB(0, 255, 120) -- Чисто
+                            elseif playersInside == 1 then
+                                data.Gui.BackgroundColor3 = Color3.fromRGB(255, 200, 0) -- Внимание
+                            else
+                                data.Gui.BackgroundColor3 = Color3.fromRGB(255, 0, 50)   -- Опасно
+                            end
+                        end
+                    else
+                        -- Если дальше 60 студов, полностью убираем эту точку, чтобы не засорять память и экран
+                        if data then
+                            if data.Gui then data.Gui:Destroy() end
+                            if data.Part then data.Part:Destroy() end
+                            ActiveSpotHighlights[id] = nil
                         end
                     end
                 end
