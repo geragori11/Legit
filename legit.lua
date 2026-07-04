@@ -27,7 +27,18 @@ return function(Window)
     local HidingSpotsEnabled = false
     local HidingSpotsRadius = 12
     local LastSpotCheck = 0
-    local HidingSpots = {} -- Сюда твой Object Picker будет добавлять BasePart или Vector3
+    
+    -- ТАБЛИЦА С ТВОИМИ НЫЧКАМИ
+    local HidingSpots = {
+        -- 1. Лобби (Добавлено через Vector3 координат, так как это надежнее всего)
+        Vector3.new(-16.29867172241211, 519.5198974609375, 66.64859008789062),
+        
+        -- 2. Карта House2 (Добавлено через координаты)
+        Vector3.new(-3.17547607421875, 258.2041015625, 8960.1005859375),
+        
+        -- Пример добавления через динамический путь (если карта загружена):
+        -- workspace:FindFirstChild("House2") and workspace.House2.Base:FindFirstChild("Part")
+    }
 
     -- --- ТАБЛИЦЫ ХРАНЕНИЯ ОБЪЕКТОВ ---
     local ActiveHighlights = {}
@@ -240,7 +251,7 @@ return function(Window)
     RunService.RenderStepped:Connect(function()
         local TargetMurderer = nil
         local TargetSheriff = nil
-        local enemyPositions = {} -- Таблица для сбора позиций игроков под тепловую карту
+        local enemyPositions = {}
 
         -- 1. Сбор ролей на сервере и координат противников
         for _, Player in ipairs(Players:GetPlayers()) do
@@ -254,7 +265,6 @@ return function(Window)
                 local root = Player.Character:FindFirstChild("HumanoidRootPart")
                 local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
                 
-                -- Собираем координаты живых врагов для логики нычек
                 if root and humanoid and humanoid.Health > 0 then
                     table.insert(enemyPositions, root.Position)
 
@@ -263,7 +273,6 @@ return function(Window)
                         local distance = GetDistance(root)
                         local visible = IsVisible(Player)
 
-                        -- Подсвечиваем только если близко ИЛИ в зоне прямой видимости
                         if distance <= SmartESPRadius or visible then
                             if not ActiveHighlights[Player] then
                                 local highlight = Instance.new("Highlight")
@@ -274,7 +283,6 @@ return function(Window)
                                 ActiveHighlights[Player] = highlight
                             end
                             
-                            -- Корректируем цвета в зависимости от роли (легитно и информативно)
                             if hasKnife then
                                 ActiveHighlights[Player].FillColor = Color3.fromRGB(255, 50, 50)
                             elseif hasGun then
@@ -318,11 +326,11 @@ return function(Window)
             ProximityLabel.Text = "Дистанция до Убийцы: " .. tostring(dist) .. " studs"
 
             if dist > 60 then
-                ProximityLabel.TextColor3 = Color3.fromRGB(50, 255, 50)   -- Зеленый 🟢
+                ProximityLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
             elseif dist > 25 and dist <= 60 then
-                ProximityLabel.TextColor3 = Color3.fromRGB(255, 255, 50)  -- Желтый 🟡
+                ProximityLabel.TextColor3 = Color3.fromRGB(255, 255, 50)
             else
-                ProximityLabel.TextColor3 = Color3.fromRGB(255, 50, 50)   -- Красный 🔴
+                ProximityLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
             end
         else
             ProximityLabel.Visible = false
@@ -330,13 +338,13 @@ return function(Window)
 
         -- 4. Логика следов шагов (Footstep Trails)
         if TrailsEnabled and TargetMurderer and TargetMurderer.Character and TargetMurderer.Character:FindFirstChild("HumanoidRootPart") then
-            if tick() - LastTrailSpawn > 0.25 then -- спавним след каждые 250 мс
+            if tick() - LastTrailSpawn > 0.25 then
                 LastTrailSpawn = tick()
                 local rootPos = TargetMurderer.Character.HumanoidRootPart.Position
                 
                 local TrailPart = Instance.new("Part")
                 TrailPart.Size = Vector3.new(1, 0.1, 1)
-                TrailPart.Position = rootPos - Vector3.new(0, 2.8, 0) -- Кладем ровно под ноги
+                TrailPart.Position = rootPos - Vector3.new(0, 2.8, 0)
                 TrailPart.Anchored = true
                 TrailPart.CanCollide = false
                 TrailPart.Material = Enum.Material.Neon
@@ -344,7 +352,6 @@ return function(Window)
                 TrailPart.Transparency = 0.4
                 TrailPart.Parent = workspace
                 
-                -- Плавное исчезновение следа, чтобы не палиться
                 task.spawn(function()
                     for i = 4, 10 do
                         task.wait(0.2)
@@ -383,7 +390,7 @@ return function(Window)
                                 box.Size = basePart.Size + Vector3.new(0.2, 0.2, 0.2)
                                 box.AlwaysOnTop = true
                                 box.ZIndex = 5
-                                box.Color3 = Color3.fromRGB(255, 215, 0) -- Золотой
+                                box.Color3 = Color3.fromRGB(255, 215, 0)
                                 box.Transparency = 0.6
                                 box.Adornee = basePart
                                 box.Parent = basePart
@@ -410,7 +417,7 @@ return function(Window)
                     ActiveGunHighlight.Size = droppedGun.Size + Vector3.new(0.5, 0.5, 0.5)
                     ActiveGunHighlight.AlwaysOnTop = true
                     ActiveGunHighlight.ZIndex = 6
-                    ActiveGunHighlight.Color3 = Color3.fromRGB(0, 255, 255) -- Бирюзовый маркер пушки
+                    ActiveGunHighlight.Color3 = Color3.fromRGB(0, 255, 255)
                     ActiveGunHighlight.Transparency = 0.4
                     ActiveGunHighlight.Adornee = droppedGun
                     ActiveGunHighlight.Parent = droppedGun
@@ -423,15 +430,24 @@ return function(Window)
             end
         end
 
-        -- 7. Логика подсветки нычек (Highlight Traps/Hiding Spots)
+        -- 7. Логика подсветки нычек (Hiding Spots)
         if HidingSpotsEnabled then
-            if tick() - LastSpotCheck > 0.3 then -- Троттлинг 300мс, чтобы не грузить ядро
+            if tick() - LastSpotCheck > 0.3 then
                 LastSpotCheck = tick()
 
                 for id, spot in ipairs(HidingSpots) do
-                    local spotPosition = (typeof(spot) == "Instance") and spot.Position or spot
+                    if not spot then continue end -- Пропускаем, если объект не существует
                     
-                    -- Создаем или находим данные подсвечивателя
+                    -- Защищенное получение координат объекта
+                    local spotPosition = nil
+                    if typeof(spot) == "Vector3" then
+                        spotPosition = spot
+                    elseif typeof(spot) == "Instance" and spot:IsA("BasePart") then
+                        spotPosition = spot.Position
+                    end
+                    
+                    if not spotPosition then continue end
+                    
                     local data = ActiveSpotHighlights[id]
                     if not data then
                         data = {}
@@ -439,11 +455,10 @@ return function(Window)
                         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         highlight.OutlineOpacity = 0.8
                         
-                        if typeof(spot) == "Instance" and (spot:IsA("BasePart") or spot:IsA("Model")) then
+                        if typeof(spot) == "Instance" then
                             highlight.Adornee = spot
                             highlight.Parent = spot
                         else
-                            -- Векторный маркер, если кинули только Vector3
                             local visualPart = Instance.new("Part")
                             visualPart.Size = Vector3.new(6, 6, 6)
                             visualPart.Position = spot
@@ -460,7 +475,6 @@ return function(Window)
                         ActiveSpotHighlights[id] = data
                     end
                     
-                    -- Проверяем, сколько врагов находится в радиусе нычки
                     local playersInside = 0
                     for _, enemyPos in ipairs(enemyPositions) do
                         if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
@@ -468,22 +482,26 @@ return function(Window)
                         end
                     end
                     
-                    -- Управление цветом тепловой карты
                     local hl = data.Highlight
                     if playersInside == 0 then
-                        hl.FillColor = Color3.fromRGB(0, 255, 120)   -- Зеленый (Пусто)
+                        hl.FillColor = Color3.fromRGB(0, 255, 120)
                         hl.OutlineColor = Color3.fromRGB(0, 255, 120)
                         hl.FillOpacity = 0.15
                     elseif playersInside == 1 then
-                        hl.FillColor = Color3.fromRGB(255, 200, 0)  -- Желтый (1 Игрок)
+                        hl.FillColor = Color3.fromRGB(255, 200, 0)
                         hl.OutlineColor = Color3.fromRGB(255, 200, 0)
                         hl.FillOpacity = 0.4
                     else
-                        hl.FillColor = Color3.fromRGB(255, 0, 50)    -- Красный (2+ Игрока)
+                        hl.FillColor = Color3.fromRGB(255, 0, 50)
                         hl.OutlineColor = Color3.fromRGB(255, 0, 50)
                         hl.FillOpacity = 0.6
                     end
                 end
+            end
+        else
+            -- Если функция отключена, очищаем созданные Vector3-парты
+            if next(ActiveSpotHighlights) ~= nil then
+                ClearHidingSpotsESP()
             end
         end
 
