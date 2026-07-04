@@ -23,9 +23,16 @@ return function(Window)
 
     local GunTrackerEnabled = false
 
+    -- Настройки новой функции Тепловой Карты Нычек
+    local HidingSpotsEnabled = false
+    local HidingSpotsRadius = 12
+    local LastSpotCheck = 0
+    local HidingSpots = {} -- Сюда твой Object Picker будет добавлять BasePart или Vector3
+
     -- --- ТАБЛИЦЫ ХРАНЕНИЯ ОБЪЕКТОВ ---
     local ActiveHighlights = {}
     local ActiveCoinHighlights = {}
+    local ActiveSpotHighlights = {} -- Хранилище эффектов для нычек
     local ActiveGunHighlight = nil
 
     -- ==========================================
@@ -105,6 +112,15 @@ return function(Window)
             if highlight then highlight:Destroy() end
         end
         table.clear(ActiveCoinHighlights)
+    end
+
+    -- Очистка подсветки нычек
+    local function ClearHidingSpotsESP()
+        for id, data in pairs(ActiveSpotHighlights) do
+            if data.Highlight then data.Highlight:Destroy() end
+            if data.Part then data.Part:Destroy() end
+        end
+        table.clear(ActiveSpotHighlights)
     end
 
     -- ==========================================
@@ -187,6 +203,16 @@ return function(Window)
     })
 
     LegitTab:CreateToggle({
+        Name = "Подсветка нычек (Hiding Spots)",
+        CurrentValue = false,
+        Flag = "HidingSpotsToggle",
+        Callback = function(Value)
+            HidingSpotsEnabled = Value
+            if not Value then ClearHidingSpotsESP() end
+        end
+    })
+
+    LegitTab:CreateToggle({
         Name = "Следы шагов Убийцы (Footstep Trails)",
         CurrentValue = false,
         Flag = "TrailsToggle",
@@ -214,8 +240,9 @@ return function(Window)
     RunService.RenderStepped:Connect(function()
         local TargetMurderer = nil
         local TargetSheriff = nil
+        local enemyPositions = {} -- Таблица для сбора позиций игроков под тепловую карту
 
-        -- 1. Сбор ролей на сервере
+        -- 1. Сбор ролей на сервере и координат противников
         for _, Player in ipairs(Players:GetPlayers()) do
             if Player ~= LocalPlayer and Player.Character then
                 local hasKnife = Player.Character:FindFirstChild("Knife") or (Player:FindFirstChild("Backpack") and Player.Backpack:FindFirstChild("Knife"))
@@ -224,12 +251,15 @@ return function(Window)
                 if hasKnife then TargetMurderer = Player end
                 if hasGun then TargetSheriff = Player end
 
-                -- [ЛОГИКА SMART ESP]
-                if SmartESPEnabled then
-                    local root = Player.Character:FindFirstChild("HumanoidRootPart")
-                    local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
-                    
-                    if root and humanoid and humanoid.Health > 0 then
+                local root = Player.Character:FindFirstChild("HumanoidRootPart")
+                local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+                
+                -- Собираем координаты живых врагов для логики нычек
+                if root and humanoid and humanoid.Health > 0 then
+                    table.insert(enemyPositions, root.Position)
+
+                    -- [ЛОГИКА SMART ESP]
+                    if SmartESPEnabled then
                         local distance = GetDistance(root)
                         local visible = IsVisible(Player)
 
@@ -263,6 +293,11 @@ return function(Window)
                             ActiveHighlights[Player]:Destroy()
                             ActiveHighlights[Player] = nil
                         end
+                    end
+                else
+                    if ActiveHighlights[Player] then
+                        ActiveHighlights[Player]:Destroy()
+                        ActiveHighlights[Player] = nil
                     end
                 end
             end
@@ -324,11 +359,9 @@ return function(Window)
 
         -- 5. Логика ограниченного ESP на монеты (Radius Coin ESP)
         if CoinESPEnabled then
-            -- Проходимся по стандартным путям спавна монет в MM2
             local container = workspace:FindFirstChild("Normal") and workspace.Normal:FindFirstChild("CoinContainer")
             local coins = container and container:GetChildren() or {}
             
-            -- Альтернативный поиск, если структура карты изменилась
             if #coins == 0 then
                 for _, obj in ipairs(workspace:GetChildren()) do
                     if obj.Name == "CoinContainer" or obj.Name == "Coin" then
@@ -386,6 +419,70 @@ return function(Window)
                 if ActiveGunHighlight then
                     ActiveGunHighlight:Destroy()
                     ActiveGunHighlight = nil
+                end
+            end
+        end
+
+        -- 7. Логика подсветки нычек (Highlight Traps/Hiding Spots)
+        if HidingSpotsEnabled then
+            if tick() - LastSpotCheck > 0.3 then -- Троттлинг 300мс, чтобы не грузить ядро
+                LastSpotCheck = tick()
+
+                for id, spot in ipairs(HidingSpots) do
+                    local spotPosition = (typeof(spot) == "Instance") and spot.Position or spot
+                    
+                    -- Создаем или находим данные подсвечивателя
+                    local data = ActiveSpotHighlights[id]
+                    if not data then
+                        data = {}
+                        local highlight = Instance.new("Highlight")
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        highlight.OutlineOpacity = 0.8
+                        
+                        if typeof(spot) == "Instance" and (spot:IsA("BasePart") or spot:IsA("Model")) then
+                            highlight.Adornee = spot
+                            highlight.Parent = spot
+                        else
+                            -- Векторный маркер, если кинули только Vector3
+                            local visualPart = Instance.new("Part")
+                            visualPart.Size = Vector3.new(6, 6, 6)
+                            visualPart.Position = spot
+                            visualPart.Anchored = true
+                            visualPart.CanCollide = false
+                            visualPart.Transparency = 1
+                            visualPart.Parent = workspace
+                            
+                            highlight.Adornee = visualPart
+                            highlight.Parent = visualPart
+                            data.Part = visualPart
+                        end
+                        data.Highlight = highlight
+                        ActiveSpotHighlights[id] = data
+                    end
+                    
+                    -- Проверяем, сколько врагов находится в радиусе нычки
+                    local playersInside = 0
+                    for _, enemyPos in ipairs(enemyPositions) do
+                        if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
+                            playersInside = playersInside + 1
+                        end
+                    end
+                    
+                    -- Управление цветом тепловой карты
+                    local hl = data.Highlight
+                    if playersInside == 0 then
+                        hl.FillColor = Color3.fromRGB(0, 255, 120)   -- Зеленый (Пусто)
+                        hl.OutlineColor = Color3.fromRGB(0, 255, 120)
+                        hl.FillOpacity = 0.15
+                    elseif playersInside == 1 then
+                        hl.FillColor = Color3.fromRGB(255, 200, 0)  -- Желтый (1 Игрок)
+                        hl.OutlineColor = Color3.fromRGB(255, 200, 0)
+                        hl.FillOpacity = 0.4
+                    else
+                        hl.FillColor = Color3.fromRGB(255, 0, 50)    -- Красный (2+ Игрока)
+                        hl.OutlineColor = Color3.fromRGB(255, 0, 50)
+                        hl.FillOpacity = 0.6
+                    end
                 end
             end
         end
