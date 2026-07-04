@@ -53,7 +53,7 @@ return function(Window)
     -- Настройки функции Тепловой Карты Нычек
     local HidingSpotsEnabled = false
     local HidingSpotsRadius = 12
-    local MaxSpotDisplayDistance = 20 -- Максимальная дистанция отображения нычек
+    local MaxSpotDisplayDistance = 50 -- Максимальная дистанция отображения нычек
     local LastSpotCheck = 0
     
     -- ТАБЛИЦА С ТВОИМИ НЫЧКАМИ
