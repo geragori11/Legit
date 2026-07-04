@@ -5,7 +5,15 @@ return function(Window)
     local Camera = workspace.CurrentCamera
     local Debris = game:GetService("Debris")
     
-    local LegitTab = Window:CreateTab("LEGIT", 4483362458)
+    -- Проверка на всякий случай, чтобы скрипт не падал, если Window не передан
+    if not Window then 
+        warn("Window object is nil!") 
+        return 
+    end
+
+    -- ЕСЛИ ИСПОЛЬЗУЕШЬ ORION: поменяй CreateTab на MakeTab
+    -- ЕСЛИ ИСПОЛЬЗУЕШЬ FLUENT: поменяй на Window:AddTab
+    local LegitTab = Window:CreateTab("LEGIT", 4483362458) 
     
     -- --- НАСТРОЙКИ ФУНКЦИЙ ---
     local SmartESPEnabled = false
@@ -30,11 +38,11 @@ return function(Window)
     
     -- ТАБЛИЦА С ТВОИМИ НЫЧКАМИ
     local HidingSpots = {
-        -- 1. Лобби[cite: 1]
-        Vector3.new(-16.29867172241211, 519.5198974609375, 66.64859008789062),[cite: 1]
+        -- 1. Лобби
+        Vector3.new(-16.29867172241211, 519.5198974609375, 66.64859008789062),
         
-        -- 2. Карта House2[cite: 2]
-        Vector3.new(-3.17547607421875, 258.2041015625, 8960.1005859375),[cite: 2]
+        -- 2. Карта House2
+        Vector3.new(-3.17547607421875, 258.2041015625, 8960.1005859375),
     }
 
     -- --- ТАБЛИЦЫ ХРАНЕНИЯ ОБЪЕКТОВ ---
@@ -453,7 +461,6 @@ return function(Window)
                             highlight.Adornee = spot
                             highlight.Parent = spot
                         else
-                            -- Исправлено: ставим 0.99 вместо 1, чтобы движок рендерил Highlight
                             local visualPart = Instance.new("Part")
                             visualPart.Size = Vector3.new(6, 6, 6)
                             visualPart.Position = spot
@@ -477,7 +484,6 @@ return function(Window)
                         end
                     end
                     
-                    -- Исправлено: заменено FillOpacity/OutlineOpacity на корректные Transparency
                     local hl = data.Highlight
                     if playersInside == 0 then
                         hl.FillColor = Color3.fromRGB(0, 255, 120)
