@@ -23,27 +23,24 @@ return function(Window)
 
     local GunTrackerEnabled = false
 
-    -- Настройки новой функции Тепловой Карты Нычек
+    -- Настройки функции Тепловой Карты Нычек
     local HidingSpotsEnabled = false
     local HidingSpotsRadius = 12
     local LastSpotCheck = 0
     
     -- ТАБЛИЦА С ТВОИМИ НЫЧКАМИ
     local HidingSpots = {
-        -- 1. Лобби (Добавлено через Vector3 координат, так как это надежнее всего)
-        Vector3.new(-16.29867172241211, 519.5198974609375, 66.64859008789062),
+        -- 1. Лобби[cite: 1]
+        Vector3.new(-16.29867172241211, 519.5198974609375, 66.64859008789062),[cite: 1]
         
-        -- 2. Карта House2 (Добавлено через координаты)
-        Vector3.new(-3.17547607421875, 258.2041015625, 8960.1005859375),
-        
-        -- Пример добавления через динамический путь (если карта загружена):
-        -- workspace:FindFirstChild("House2") and workspace.House2.Base:FindFirstChild("Part")
+        -- 2. Карта House2[cite: 2]
+        Vector3.new(-3.17547607421875, 258.2041015625, 8960.1005859375),[cite: 2]
     }
 
     -- --- ТАБЛИЦЫ ХРАНЕНИЯ ОБЪЕКТОВ ---
     local ActiveHighlights = {}
     local ActiveCoinHighlights = {}
-    local ActiveSpotHighlights = {} -- Хранилище эффектов для нычек
+    local ActiveSpotHighlights = {} 
     local ActiveGunHighlight = nil
 
     -- ==========================================
@@ -110,7 +107,6 @@ return function(Window)
         return (LocalPlayer.Character.HumanoidRootPart.Position - Part.Position).Magnitude
     end
 
-    -- Очистка ESP при выключении
     local function ClearAllESP()
         for player, highlight in pairs(ActiveHighlights) do
             if highlight then highlight:Destroy() end
@@ -125,7 +121,6 @@ return function(Window)
         table.clear(ActiveCoinHighlights)
     end
 
-    -- Очистка подсветки нычек
     local function ClearHidingSpotsESP()
         for id, data in pairs(ActiveSpotHighlights) do
             if data.Highlight then data.Highlight:Destroy() end
@@ -436,9 +431,8 @@ return function(Window)
                 LastSpotCheck = tick()
 
                 for id, spot in ipairs(HidingSpots) do
-                    if not spot then continue end -- Пропускаем, если объект не существует
+                    if not spot then continue end 
                     
-                    -- Защищенное получение координат объекта
                     local spotPosition = nil
                     if typeof(spot) == "Vector3" then
                         spotPosition = spot
@@ -453,18 +447,19 @@ return function(Window)
                         data = {}
                         local highlight = Instance.new("Highlight")
                         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        highlight.OutlineOpacity = 0.8
+                        highlight.OutlineTransparency = 0.2
                         
                         if typeof(spot) == "Instance" then
                             highlight.Adornee = spot
                             highlight.Parent = spot
                         else
+                            -- Исправлено: ставим 0.99 вместо 1, чтобы движок рендерил Highlight
                             local visualPart = Instance.new("Part")
                             visualPart.Size = Vector3.new(6, 6, 6)
                             visualPart.Position = spot
                             visualPart.Anchored = true
                             visualPart.CanCollide = false
-                            visualPart.Transparency = 1
+                            visualPart.Transparency = 0.99 
                             visualPart.Parent = workspace
                             
                             highlight.Adornee = visualPart
@@ -482,24 +477,27 @@ return function(Window)
                         end
                     end
                     
+                    -- Исправлено: заменено FillOpacity/OutlineOpacity на корректные Transparency
                     local hl = data.Highlight
                     if playersInside == 0 then
                         hl.FillColor = Color3.fromRGB(0, 255, 120)
                         hl.OutlineColor = Color3.fromRGB(0, 255, 120)
-                        hl.FillOpacity = 0.15
+                        hl.FillTransparency = 0.85
+                        hl.OutlineTransparency = 0.2
                     elseif playersInside == 1 then
                         hl.FillColor = Color3.fromRGB(255, 200, 0)
                         hl.OutlineColor = Color3.fromRGB(255, 200, 0)
-                        hl.FillOpacity = 0.4
+                        hl.FillTransparency = 0.6
+                        hl.OutlineTransparency = 0.2
                     else
                         hl.FillColor = Color3.fromRGB(255, 0, 50)
                         hl.OutlineColor = Color3.fromRGB(255, 0, 50)
-                        hl.FillOpacity = 0.6
+                        hl.FillTransparency = 0.4
+                        hl.OutlineTransparency = 0.2
                     end
                 end
             end
         else
-            -- Если функция отключена, очищаем созданные Vector3-парты
             if next(ActiveSpotHighlights) ~= nil then
                 ClearHidingSpotsESP()
             end
