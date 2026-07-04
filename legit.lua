@@ -5,15 +5,13 @@ return function(Window)
     local Camera = workspace.CurrentCamera
     local Debris = game:GetService("Debris")
     
-    -- Проверка на всякий случай, чтобы скрипт не падал, если Window не передан
     if not Window then 
-        warn("Window object is nil!") 
+        warn("Rayfield Window object was not passed to the module!") 
         return 
     end
 
-    -- ЕСЛИ ИСПОЛЬЗУЕШЬ ORION: поменяй CreateTab на MakeTab
-    -- ЕСЛИ ИСПОЛЬЗУЕШЬ FLUENT: поменяй на Window:AddTab
-    local LegitTab = Window:CreateTab("LEGIT", 4483362458) 
+    -- Создание вкладки в Rayfield (убедись, что иконка ID корректная или оставь 0)
+    local LegitTab = Window:CreateTab("LEGIT", 4483362458)
     
     -- --- НАСТРОЙКИ ФУНКЦИЙ ---
     local SmartESPEnabled = false
@@ -131,7 +129,7 @@ return function(Window)
 
     local function ClearHidingSpotsESP()
         for id, data in pairs(ActiveSpotHighlights) do
-            if data.Highlight then data.Highlight:Destroy() end
+            if data.Adornment then data.Adornment:Destroy() end
             if data.Part then data.Part:Destroy() end
         end
         table.clear(ActiveSpotHighlights)
@@ -433,7 +431,7 @@ return function(Window)
             end
         end
 
-        -- 7. Логика подсветки нычек (Hiding Spots)
+        -- 7. Исправленная логика подсветки нычек через BoxHandleAdornment
         if HidingSpotsEnabled then
             if tick() - LastSpotCheck > 0.3 then
                 LastSpotCheck = tick()
@@ -442,10 +440,13 @@ return function(Window)
                     if not spot then continue end 
                     
                     local spotPosition = nil
+                    local targetAdornee = nil
+                    
                     if typeof(spot) == "Vector3" then
                         spotPosition = spot
                     elseif typeof(spot) == "Instance" and spot:IsA("BasePart") then
                         spotPosition = spot.Position
+                        targetAdornee = spot
                     end
                     
                     if not spotPosition then continue end
@@ -453,30 +454,34 @@ return function(Window)
                     local data = ActiveSpotHighlights[id]
                     if not data then
                         data = {}
-                        local highlight = Instance.new("Highlight")
-                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        highlight.OutlineTransparency = 0.2
                         
-                        if typeof(spot) == "Instance" then
-                            highlight.Adornee = spot
-                            highlight.Parent = spot
-                        else
+                        -- Если это просто координаты Vector3, создаем невидимый парт-якорь
+                        if not targetAdornee then
                             local visualPart = Instance.new("Part")
-                            visualPart.Size = Vector3.new(6, 6, 6)
-                            visualPart.Position = spot
+                            visualPart.Size = Vector3.new(1, 1, 1)
+                            visualPart.Position = spotPosition
                             visualPart.Anchored = true
                             visualPart.CanCollide = false
-                            visualPart.Transparency = 0.99 
+                            visualPart.Transparency = 1 -- Полностью невидимый парт
                             visualPart.Parent = workspace
-                            
-                            highlight.Adornee = visualPart
-                            highlight.Parent = visualPart
                             data.Part = visualPart
+                            targetAdornee = visualPart
                         end
-                        data.Highlight = highlight
+                        
+                        -- Используем BoxHandleAdornment вместо капризного Highlight
+                        local adornment = Instance.new("BoxHandleAdornment")
+                        adornment.Name = "HidingSpotAdornment"
+                        adornment.Size = Vector3.new(5, 6, 5) -- Размер подсвечиваемой коробки нычки
+                        adornment.AlwaysOnTop = true
+                        adornment.ZIndex = 4
+                        adornment.Adornee = targetAdornee
+                        adornment.Parent = targetAdornee
+                        
+                        data.Adornment = adornment
                         ActiveSpotHighlights[id] = data
                     end
                     
+                    -- Проверяем наличие игроков в радиусе нычки
                     local playersInside = 0
                     for _, enemyPos in ipairs(enemyPositions) do
                         if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
@@ -484,22 +489,17 @@ return function(Window)
                         end
                     end
                     
-                    local hl = data.Highlight
+                    -- Меняем цвет бокса в зависимости от опасности
+                    local adj = data.Adornment
                     if playersInside == 0 then
-                        hl.FillColor = Color3.fromRGB(0, 255, 120)
-                        hl.OutlineColor = Color3.fromRGB(0, 255, 120)
-                        hl.FillTransparency = 0.85
-                        hl.OutlineTransparency = 0.2
+                        adj.Color3 = Color3.fromRGB(0, 255, 120) -- Безопасно (Зеленый)
+                        adj.Transparency = 0.7
                     elseif playersInside == 1 then
-                        hl.FillColor = Color3.fromRGB(255, 200, 0)
-                        hl.OutlineColor = Color3.fromRGB(255, 200, 0)
-                        hl.FillTransparency = 0.6
-                        hl.OutlineTransparency = 0.2
+                        adj.Color3 = Color3.fromRGB(255, 200, 0) -- Внимание (Желтый)
+                        adj.Transparency = 0.5
                     else
-                        hl.FillColor = Color3.fromRGB(255, 0, 50)
-                        hl.OutlineColor = Color3.fromRGB(255, 0, 50)
-                        hl.FillTransparency = 0.4
-                        hl.OutlineTransparency = 0.2
+                        adj.Color3 = Color3.fromRGB(255, 0, 50)   -- Опасно (Красный)
+                        adj.Transparency = 0.4
                     end
                 end
             end
