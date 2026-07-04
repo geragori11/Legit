@@ -431,57 +431,63 @@ return function(Window)
             end
         end
 
-        -- 7. Исправленная логика подсветки нычек через BoxHandleAdornment
+       -- 7. ЖЕЛЕЗОБЕТОННАЯ ЛОГИКА НА BILLBOARDGUI (ВИДНО СКВОЗЬ СТЕНЫ)
         if HidingSpotsEnabled then
             if tick() - LastSpotCheck > 0.3 then
                 LastSpotCheck = tick()
 
+                -- Создаем папку в workspace, если её нет (гарантирует рендер UI)
+                local folder = workspace:FindFirstChild("HidingSpots_Folder")
+                if not folder then
+                    folder = Instance.new("Folder")
+                    folder.Name = "HidingSpots_Folder"
+                    folder.Parent = workspace
+                end
+
                 for id, spot in ipairs(HidingSpots) do
                     if not spot then continue end 
                     
-                    local spotPosition = nil
-                    local targetAdornee = nil
-                    
-                    if typeof(spot) == "Vector3" then
-                        spotPosition = spot
-                    elseif typeof(spot) == "Instance" and spot:IsA("BasePart") then
-                        spotPosition = spot.Position
-                        targetAdornee = spot
-                    end
-                    
-                    if not spotPosition then continue end
-                    
+                    local spotPosition = (typeof(spot) == "Vector3") and spot or spot.Position
                     local data = ActiveSpotHighlights[id]
+                    
                     if not data then
                         data = {}
                         
-                        -- Если это просто координаты Vector3, создаем невидимый парт-якорь
-                        if not targetAdornee then
-                            local visualPart = Instance.new("Part")
-                            visualPart.Size = Vector3.new(1, 1, 1)
-                            visualPart.Position = spotPosition
-                            visualPart.Anchored = true
-                            visualPart.CanCollide = false
-                            visualPart.Transparency = 1 -- Полностью невидимый парт
-                            visualPart.Parent = workspace
-                            data.Part = visualPart
-                            targetAdornee = visualPart
-                        end
+                        -- Создаем физическую точку-якорь внутри нашей папки
+                        local visualPart = Instance.new("Part")
+                        visualPart.Size = Vector3.new(1, 1, 1)
+                        visualPart.Position = spotPosition
+                        visualPart.Anchored = true
+                        visualPart.CanCollide = false
+                        visualPart.Transparency = 1 -- Абсолютно невидимая
+                        visualPart.Parent = folder
+                        data.Part = visualPart
                         
-                        -- Используем BoxHandleAdornment вместо капризного Highlight
-                        local adornment = Instance.new("BoxHandleAdornment")
-                        adornment.Name = "HidingSpotAdornment"
-                        adornment.Size = Vector3.new(5, 6, 5) -- Размер подсвечиваемой коробки нычки
-                        adornment.AlwaysOnTop = true
-                        adornment.ZIndex = 4
-                        adornment.Adornee = targetAdornee
-                        adornment.Parent = targetAdornee
+                        -- Создаем BillboardGui, который пробивает стены
+                        local billboard = Instance.new("BillboardGui")
+                        billboard.Name = "HidingSpotGui"
+                        billboard.Size = UDim2.new(0, 15, 0, 15) -- Размер точки на экране
+                        billboard.AlwaysOnTop = true -- Вот это свойство делает её видной сквозь стены!
+                        billboard.Adornee = visualPart
+                        billboard.Parent = visualPart
                         
-                        data.Adornment = adornment
+                        -- Сама круглая точка (индикатор)
+                        local dot = Instance.new("Frame")
+                        dot.Size = UDim2.new(1, 0, 1, 0)
+                        dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+                        dot.BorderSizePixel = 0
+                        dot.Parent = billboard
+                        
+                        -- Делаем фрейм круглым
+                        local corner = Instance.new("UICorner")
+                        corner.CornerRadius = UDim.new(1, 0)
+                        corner.Parent = dot
+                        
+                        data.Gui = dot
                         ActiveSpotHighlights[id] = data
                     end
                     
-                    -- Проверяем наличие игроков в радиусе нычки
+                    -- Проверяем игроков вокруг нычки
                     local playersInside = 0
                     for _, enemyPos in ipairs(enemyPositions) do
                         if (spotPosition - enemyPos).Magnitude <= HidingSpotsRadius then
@@ -489,17 +495,15 @@ return function(Window)
                         end
                     end
                     
-                    -- Меняем цвет бокса в зависимости от опасности
-                    local adj = data.Adornment
-                    if playersInside == 0 then
-                        adj.Color3 = Color3.fromRGB(0, 255, 120) -- Безопасно (Зеленый)
-                        adj.Transparency = 0.7
-                    elseif playersInside == 1 then
-                        adj.Color3 = Color3.fromRGB(255, 200, 0) -- Внимание (Желтый)
-                        adj.Transparency = 0.5
-                    else
-                        adj.Color3 = Color3.fromRGB(255, 0, 50)   -- Опасно (Красный)
-                        adj.Transparency = 0.4
+                    -- Меняем цвет точки динамически
+                    if data.Gui then
+                        if playersInside == 0 then
+                            data.Gui.BackgroundColor3 = Color3.fromRGB(0, 255, 120) -- Зеленый (Чисто)
+                        elseif playersInside == 1 then
+                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 200, 0) -- Желтый (Рядом кто-то есть)
+                        else
+                            data.Gui.BackgroundColor3 = Color3.fromRGB(255, 0, 50)   -- Красный (Опасно)
+                        end
                     end
                 end
             end
@@ -508,6 +512,3 @@ return function(Window)
                 ClearHidingSpotsESP()
             end
         end
-
-    end)
-end
